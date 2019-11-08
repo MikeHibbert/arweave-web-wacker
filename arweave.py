@@ -40,9 +40,9 @@ class Wallet(object):
         return self.balance  
     
     def sign(self, message):
-        crypto_key = CryptographyRSAKey(self.jwk_data)
+        crypto_key = CryptographyRSAKey(self.jwk_data, jwk.ALGORITHMS.RS256)
         
-        return crypto_key.sign(message).encode()
+        return crypto_key.sign(message)
     
     def get_last_transaction_id(self):
         url = "{}/wallet/{}/last_tx".format(self.api_url, self.address)
@@ -50,14 +50,14 @@ class Wallet(object):
         response = requests.get(url)
 
         if response.status_code == 200:
-            self.last_tx = winston_to_ar(response.text)
+            self.last_tx = response.text
             
         return self.last_tx
 
 
 class Transaction(object):
-    def __init__(self, jwk_data, wallet, **kwargs):
-        self.jwk_data = jwk_data
+    def __init__(self, wallet, **kwargs):
+        self.jwk_data = wallet.jwk_data
         self.jwk = jwk.construct(self.jwk_data, algorithm="RS256")
         
         self.id = ''
@@ -65,8 +65,11 @@ class Transaction(object):
         self.owner = self.jwk_data.get('n')
         self.tags = []
         self.quantity = kwargs.get('quantity', '0')
-        self.data = kwargs.get('data', '').encode('ascii')
+        self.data = base64url_encode(kwargs.get('data', '').encode('ascii'))
         self.target = kwargs.get('target', '')
+        self.to = kwargs.get('to', '')
+        
+        self.api_url = "https://arweave.net"
         
         reward = kwargs.get('reward', None)
         if reward != None:
@@ -79,10 +82,10 @@ class Transaction(object):
     def get_reward(self, data, target_address=None):
         data_length = len(data)
         
-        url = "/price/{}".format(data_length)
+        url = "{}/price/{}".format(self.api_url,data_length)
         
         if target_address:
-            url = "/price/{}/{}".format(data_length, target_address)
+            url = "{}/price/{}/{}".format(self.api_url, data_length, target_address)
 
         response = requests.get(url)
 
@@ -102,7 +105,7 @@ class Transaction(object):
         
         self.signature = base64url_encode(raw_signature)
         
-        self.id = hashlib.sha256(raw_signature).digest()
+        self.id = base64url_encode(hashlib.sha256(raw_signature).digest())
         
     def get_signature_data(self):
         tag_str = ""
@@ -111,7 +114,7 @@ class Transaction(object):
             name, value = decode_tag(tag)
             tag_str += "{}{}".format(name, value)
             
-        owner = base64url_decode(self.jwk_data['n'])
+        owner = base64url_decode(self.jwk_data['n'].encode())
         target = base64url_decode(self.target)
         data = base64url_decode(self.data)
         quantity = self.quantity.encode()
@@ -127,19 +130,21 @@ class Transaction(object):
 
         if response.status_code == 200:
             self.last_tx = winston_to_ar(response.text)
+        else:
+            logger.error(response.text)
             
         return self.last_tx    
     
     @property
     def json_data(self):
         return json.dumps({
-         'data': self.data,
-         'id': self.id,
+         'data': self.data.decode(),
+         'id': self.id.decode(),
          'last_tx': self.last_tx,
          'owner': self.owner,
          'quantity': self.quantity,
          'reward': self.reward,
-         'signature': self.signature,
+         'signature': self.signature.decode(),
          'tags': self.tags,
          'target': self.target
         })
@@ -154,6 +159,14 @@ if __name__ == "__main__":
         balance = wallet.get_balance()
         
         logger.debug(balance)
+        
+        tx = Transaction(wallet=wallet, data="Cheese is nice")
+        
+        tx.add_tag("app", "web-whacker")
+        
+        tx.sign(wallet)
+        
+        tx.post()
 
     run_test("/home/mike/Dropbox/hit solutions/Bitcoin/Arweave/arweave-keyfile-OFD5dO06Wdurb4w5TTenzkw1PacATOP-6lAlfAuRZFk.json")
 

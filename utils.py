@@ -4,14 +4,14 @@ from jose.utils import base64url_encode, base64url_decode, base64
 
 
 def create_tag(name, value):
-    b64name = base64url_encode(name.encode('ascii'))
-    b64value = base64url_encode(value.encode('ascii'))
+    b64name = base64url_encode(name.encode('ascii')).decode()
+    b64value = base64url_encode(value.encode('ascii')).decode()
     
-    return {name: b64name, value:b64value}
+    return {"name": b64name, "value":b64value}
 
 def decode_tag(tag):
-    name = base64url_decode(tag['name']).encode()
-    value = base64url_decode(tag['value']).encode()
+    name = base64url_decode(tag['name'].encode())
+    value = base64url_decode(tag['value'].encode())
     
     return name, value
     

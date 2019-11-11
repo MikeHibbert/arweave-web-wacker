@@ -19,5 +19,5 @@ pip install -r requirements.txt
 
 3) Run the program with your url that you want backup into the blockchain (depth is optional):
 ```
-python bot.py www.my-website.com {depth}
+python bot.py <root URL> <path to your wallet file> <depth>
 ```

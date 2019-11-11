@@ -20,6 +20,8 @@ from utils import (
 
 logger = logging.getLogger(__name__)
 
+TRANSACTION_DATA_LIMIT_IN_BYTES = 2000000
+
 class Wallet(object):
     HASH = 'sha256'
 

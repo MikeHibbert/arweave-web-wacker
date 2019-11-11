@@ -1,4 +1,4 @@
-# arweave-web-wacker
+# Arweave WebWacker
 Automated Data Archiver to Arweave permaweb
 
 ## Install

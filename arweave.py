@@ -53,6 +53,9 @@ class Wallet(object):
         signed_data = PKCS1_PSS.new(self.rsa).sign(h)      
         return signed_data
     
+    def verify(self):
+        pass 
+    
     def get_last_transaction_id(self):
         url = "{}/wallet/{}/last_tx".format(self.api_url, self.address)
 
@@ -69,7 +72,7 @@ class Transaction(object):
         self.jwk_data = wallet.jwk_data
         self.jwk = jwk.construct(self.jwk_data, algorithm="RS256")
         
-        self.id = ''
+        self.id = kwargs.get('id', '')
         self.last_tx = wallet.get_last_transaction_id()
         self.owner = self.jwk_data.get('n')
         self.tags = []
@@ -92,6 +95,7 @@ class Transaction(object):
             self.reward = self.get_reward(self.data)
             
         self.signature = ''
+        self.status = None
         
     def get_reward(self, data, target_address=None):
         data_length = len(data)
@@ -166,6 +170,48 @@ class Transaction(object):
                 })        
         
         return jsons.replace(' ','')
+    
+    def get_status(self):
+        url = "{}/tx/{}/status".format(self.api_url, self.id)
+
+        response = requests.get(url)
+        
+        json_status = None
+
+        if response.status_code == 200:
+            self.status = json.loads(response.text)
+        else:
+            logger.error(response.text)  
+            
+        return self.status
+    
+    def get_transaction(self):
+        url = "{}/tx/{}".format(self.api_url, self.id)
+
+        response = requests.get(url)
+        
+        tx = None
+
+        if response.status_code == 200:
+            self.load_json(response.text)
+        else:
+            logger.error(response.text)    
+            
+        return tx
+            
+    def load_json(self, json_str):
+        json_data = json.loads(json_str)
+        
+        self.data = json_data.get('data', '')
+        self.last_tx = json_data.get('last_tx', '')
+        self.owner = json_data.get('owner', '')
+        self.quantity = json_data.get('quantity', '')
+        self.reward = json_data.get('reward', '')
+        self.signature = json_data.get('signature', '')
+        self.tags = json_data.get('tags', '')
+        self.target = json_data.get('target', '')
+        
+        logger.debug(json_data)
         
 
 if __name__ == "__main__":
@@ -192,7 +238,14 @@ if __name__ == "__main__":
             
             tx.sign(wallet)
             
-            tx.post()
+            #tx.post()
+            
+            logger.debug(tx.get_status())
+            
+            new_tx = Transaction(wallet, id="3DEVEPwqNLIcuLzzPZrg6raHZui2rem6zcGV7Fpitag")
+            new_tx.get_transaction()
+            new_tx.get_status()
+            logger.debug(new_tx.status)
 
     run_test("/home/mike/Dropbox/hit solutions/Bitcoin/Arweave/arweave-keyfile-OFD5dO06Wdurb4w5TTenzkw1PacATOP-6lAlfAuRZFk.json")
 

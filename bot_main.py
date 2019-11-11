@@ -76,7 +76,7 @@ class WebWhacker(object):
     
     def save_project_json(self):
         json_output = json.dumps(self.project, indent=4, sort_keys=True)
-        output_filename = "{}-{}.json".format(self.project.get('root_url'), arrow.now().timestamp)
+        output_filename = "wwproj-{}-{}.json".format(self.project.get('root_url'), arrow.now().timestamp)
         
         with open(output_filename, "w") as opf:
             opf.write(json_output)

@@ -2,9 +2,14 @@ import json
 import requests
 import logging
 import hashlib
+import arrow
+import nacl.bindings
 from jose import jwk
 from jose.utils import base64url_encode, base64url_decode, base64
 from jose.backends.cryptography_backend import CryptographyRSAKey
+from Crypto.PublicKey import RSA
+from Crypto.Signature import PKCS1_PSS
+from Crypto.Hash import SHA256
 from utils import (
     winston_to_ar, 
     ar_to_winston, 
@@ -21,10 +26,14 @@ class Wallet(object):
     def __init__(self, jwk_file='jwk_file.json'):
         with open(jwk_file, 'r') as j_file:
             self.jwk_data = json.loads(j_file.read())
-            self.jwk = jwk.construct(self.jwk_data, algorithm="RS256")
-            jwk.ALGORITHMS
+            self.jwk_data['p2s'] = ''
+            self.jwk = jwk.construct(self.jwk_data, algorithm=jwk.ALGORITHMS.RS256)
+            self.rsa = RSA.importKey(self.jwk.to_pem())
+            
             self.owner = self.jwk_data.get('n')
             self.address = owner_to_address(self.owner)
+            
+            
 
         self.api_url = "https://arweave.net"
         self.balance = 0
@@ -40,9 +49,9 @@ class Wallet(object):
         return self.balance  
     
     def sign(self, message):
-        crypto_key = CryptographyRSAKey(self.jwk_data, jwk.ALGORITHMS.RS256)
-        
-        return crypto_key.sign(message)
+        h = SHA256.new(message)
+        signed_data = PKCS1_PSS.new(self.rsa).sign(h)      
+        return signed_data
     
     def get_last_transaction_id(self):
         url = "{}/wallet/{}/last_tx".format(self.api_url, self.address)
@@ -65,7 +74,12 @@ class Transaction(object):
         self.owner = self.jwk_data.get('n')
         self.tags = []
         self.quantity = kwargs.get('quantity', '0')
-        self.data = base64url_encode(kwargs.get('data', '').encode('ascii'))
+        
+        data = kwargs.get('data', '')
+        if type(data) is bytes:
+            self.data = base64url_encode(data)
+        else:
+            self.data = base64url_encode(data.encode('ascii'))
         self.target = kwargs.get('target', '')
         self.to = kwargs.get('to', '')
         
@@ -112,16 +126,18 @@ class Transaction(object):
         
         for tag in self.tags:
             name, value = decode_tag(tag)
-            tag_str += "{}{}".format(name, value)
+            tag_str += "{}{}".format(name.decode(), value.decode())
             
         owner = base64url_decode(self.jwk_data['n'].encode())
         target = base64url_decode(self.target)
         data = base64url_decode(self.data)
         quantity = self.quantity.encode()
         reward = self.reward.encode()
-        last_tx = self.last_tx.encode()
+        last_tx = base64url_decode(self.last_tx.encode())
         
-        return tag_str.encode() + owner + target + data + quantity + reward + last_tx
+        signature_data = owner + target + data + quantity + reward + last_tx + tag_str.encode()
+        
+        return signature_data
     
     def post(self):
         url = "{}/tx".format(self.api_url)
@@ -129,25 +145,27 @@ class Transaction(object):
         response = requests.post(url, data=self.json_data)
 
         if response.status_code == 200:
-            self.last_tx = winston_to_ar(response.text)
+            logger.debug(response.text)
         else:
-            logger.error(response.text)
+            logger.error("{}\n\n{}".format(response.text, self.json_data))
             
         return self.last_tx    
     
     @property
     def json_data(self):
-        return json.dumps({
-         'data': self.data.decode(),
-         'id': self.id.decode(),
-         'last_tx': self.last_tx,
-         'owner': self.owner,
-         'quantity': self.quantity,
-         'reward': self.reward,
-         'signature': self.signature.decode(),
-         'tags': self.tags,
-         'target': self.target
-        })
+        jsons = json.dumps({
+                 'data': self.data.decode(),
+                 'id': self.id.decode(),
+                 'last_tx': self.last_tx,
+                 'owner': self.owner,
+                 'quantity': self.quantity,
+                 'reward': self.reward,
+                 'signature': self.signature.decode(),
+                 'tags': self.tags,
+                 'target': self.target
+                })        
+        
+        return jsons.replace(' ','')
         
 
 if __name__ == "__main__":
@@ -155,18 +173,26 @@ if __name__ == "__main__":
     
     def run_test(jwk_file):
         wallet = Wallet(jwk_file)
+        
+        pdf_filename = "/home/mike/Downloads/test2.pdf"
+        with open(pdf_filename, 'rb') as pdf_file:
+            pdf_data = pdf_file.read()
 
-        balance = wallet.get_balance()
-        
-        logger.debug(balance)
-        
-        tx = Transaction(wallet=wallet, data="Cheese is nice")
-        
-        tx.add_tag("app", "web-whacker")
-        
-        tx.sign(wallet)
-        
-        tx.post()
+            balance = wallet.get_balance()
+            
+            logger.debug(balance)
+            
+            tx = Transaction(wallet=wallet, data=pdf_data)
+            
+            tx.add_tag('app', "arweave-dapp_app_v1.3");
+            tx.add_tag('created', str(arrow.now().timestamp));
+            tx.add_tag('title', "Highcharts Demo");
+            tx.add_tag('description', "dsadsdasdasdasdas");
+            tx.add_tag('filename', "test2.pdf");     
+            
+            tx.sign(wallet)
+            
+            tx.post()
 
     run_test("/home/mike/Dropbox/hit solutions/Bitcoin/Arweave/arweave-keyfile-OFD5dO06Wdurb4w5TTenzkw1PacATOP-6lAlfAuRZFk.json")
 

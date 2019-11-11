@@ -21,3 +21,10 @@ pip install -r requirements.txt
 ```
 python bot.py <root URL> <path to your wallet file> <depth>
 ```
+
+NOTE: a project file with the urls name and timestamp is created so you can monitor submission to the blockchain
+
+### Status checking
+You can use the check_project_status.py to check the current status of the project created:
+```
+python check_project_status.py "<wallet file path>" "<project file path>"

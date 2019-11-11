@@ -184,6 +184,7 @@ class Transaction(object):
             self.status = json.loads(response.text)
         else:
             logger.error(response.text)  
+            self.status = "PENDING"
             
         return self.status
     
@@ -249,5 +250,5 @@ if __name__ == "__main__":
             new_tx.get_status()
             logger.debug(new_tx.status)
 
-    run_test("/home/mike/Dropbox/hit solutions/Bitcoin/Arweave/arweave-keyfile-OFD5dO06Wdurb4w5TTenzkw1PacATOP-6lAlfAuRZFk.json")
+    run_test("somekeyfile.json")
 
